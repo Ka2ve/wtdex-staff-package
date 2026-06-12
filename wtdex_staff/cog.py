@@ -24,7 +24,7 @@ class Staff(commands.GroupCog, group_name="staff"):
             return False
         return True
 
-    async def vehicle_autocomplete(
+    async def plane_autocomplete(
         self,
         interaction: discord.Interaction,
         current: str,
@@ -71,20 +71,20 @@ class Staff(commands.GroupCog, group_name="staff"):
             except Exception:
                 pass
 
-    @app_commands.command(name="name", description="Show the catch names of a vehicle")
-    @app_commands.describe(vehicle="The vehicle to inspect")
-    @app_commands.autocomplete(vehicle=vehicle_autocomplete)
-    async def vehicle_name(self, interaction: discord.Interaction, vehicle: str):
+    @app_commands.command(name="name", description="Show the catch names of a plane")
+    @app_commands.describe(plane="The plane to inspect")
+    @app_commands.autocomplete(plane=plane_autocomplete)
+    async def plane_name(self, interaction: discord.Interaction, plane: str):
         await interaction.response.defer(ephemeral=True)
 
         try:
-            vehicle_id = int(vehicle)
+            plane_id = int(plane)
         except ValueError:
-            return await interaction.followup.send("Invalid vehicle selection.", ephemeral=True)
+            return await interaction.followup.send("Invalid plane selection.", ephemeral=True)
 
-        ball = await Ball.objects.filter(pk=vehicle_id).afirst()
+        ball = await Ball.objects.filter(pk=plane_id).afirst()
         if not ball:
-            return await interaction.followup.send("Vehicle not found.", ephemeral=True)
+            return await interaction.followup.send("Plane not found.", ephemeral=True)
 
         raw_catch_names = ball.catch_names
         catch_names_list: list[str] = []
@@ -117,25 +117,25 @@ class Staff(commands.GroupCog, group_name="staff"):
             catch_names_text = "None set."
 
         await interaction.followup.send(
-            f"**Vehicle:** {ball.country}\n"
+            f"**Plane:** {ball.country}\n"
             f"**Catch names:**\n{catch_names_text}",
             ephemeral=True,
         )
 
-    @app_commands.command(name="inspect", description="Inspect a vehicle (spawn image,card & base stats)")
-    @app_commands.describe(vehicle="The vehicle to inspect")
-    @app_commands.autocomplete(vehicle=vehicle_autocomplete)
-    async def inspect_vehicle(self, interaction: discord.Interaction, vehicle: str):
+    @app_commands.command(name="inspect", description="Inspect a plane (spawn image,card & base stats)")
+    @app_commands.describe(plane="The plane to inspect")
+    @app_commands.autocomplete(plane=plane_autocomplete)
+    async def inspect_plane(self, interaction: discord.Interaction, plane: str):
         await interaction.response.defer(ephemeral=True)
 
         try:
-            vehicle_id = int(vehicle)
+            plane_id = int(plane)
         except ValueError:
-            return await interaction.followup.send("Invalid vehicle selection.", ephemeral=True)
+            return await interaction.followup.send("Invalid plane selection.", ephemeral=True)
 
-        ball = await Ball.objects.filter(pk=vehicle_id).afirst()
+        ball = await Ball.objects.filter(pk=plane_id).afirst()
         if not ball:
-            return await interaction.followup.send("Vehicle not found.", ephemeral=True)
+            return await interaction.followup.send("Plane not found.", ephemeral=True)
 
         files: list[discord.File] = []
 
@@ -163,7 +163,7 @@ class Staff(commands.GroupCog, group_name="staff"):
             pass
 
         stats_text = (
-            f"**Vehicle:** {ball.country}\n"
+            f"**Plane:** {ball.country}\n"
             f"**Base Stats:**\n"
             f"HP: `{ball.health}`\n"
             f"ATK: `{ball.attack}`"
@@ -174,7 +174,7 @@ class Staff(commands.GroupCog, group_name="staff"):
         else:
             await interaction.followup.send(f"{stats_text}\n\n(No images available.)", ephemeral=True)
 
-    @app_commands.command(name="restore", description="Restore vehicles from CSV to a user")
+    @app_commands.command(name="restore", description="Restore Planes from CSV to a user")
     async def restore_inventory(self, interaction: discord.Interaction, user_id: str, csv_file: discord.Attachment):
         await interaction.response.defer(ephemeral=True, thinking=True)
 
@@ -195,14 +195,14 @@ class Staff(commands.GroupCog, group_name="staff"):
         reader = csv.DictReader(io.StringIO(data))
 
         for row in reader:
-            vehicle_name = (row.get("vehicle") or "").strip()
+            plane_name = (row.get("plane") or "").strip()
             special_name = (row.get("special_card") or "").strip()
 
-            if not vehicle_name:
+            if not plane_name:
                 failed += 1
                 continue
 
-            ball = await Ball.objects.filter(country__iexact=vehicle_name).afirst()
+            ball = await Ball.objects.filter(country__iexact=plane_name).afirst()
             if not ball:
                 failed += 1
                 continue
@@ -248,15 +248,15 @@ class Staff(commands.GroupCog, group_name="staff"):
         output = io.StringIO()
         writer = csv.writer(output)
 
-        writer.writerow(["vehicle", "special_card"])
+        writer.writerow(["plane", "special_card"])
 
         count = 0
 
         async for inst in instances:
-            vehicle_name = inst.ball.country if inst.ball else "Unknown"
+            plane_name = inst.ball.country if inst.ball else "Unknown"
             special_name = inst.special.name if getattr(inst, "special", None) else ""
 
-            writer.writerow([vehicle_name, special_name])
+            writer.writerow([plane_name, special_name])
             count += 1
 
         output.seek(0)
@@ -267,7 +267,7 @@ class Staff(commands.GroupCog, group_name="staff"):
         )
 
         await interaction.followup.send(
-            content=f"Exported **{count}** vehicles for <@{discord_id}>",
+            content=f"Exported **{count}** planes for <@{discord_id}>",
             file=file,
             ephemeral=True
         )
