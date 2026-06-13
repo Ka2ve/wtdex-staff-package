@@ -40,7 +40,7 @@ class Staff(commands.GroupCog, group_name="staff"):
             choices.append(app_commands.Choice(name=ball.country, value=str(ball.pk)))
         return choices
 
-    @app_commands.command(name="leave", description="Force War Thunder Dex to leave a server")
+    @app_commands.command(name="leave", description="Force AviationDex to leave a server")
     @app_commands.describe(guild_id="The ID of the server to leave")
     async def leave_guild(self, interaction: discord.Interaction, guild_id: str):
         try:
