@@ -317,5 +317,34 @@ async def restore_inventory(
         )
 
 
+    @app_commands.command(name="broadcast", description="Broadcast a message to all configured spawn channels")
+    @app_commands.describe(message="The message to broadcast")
+    async def broadcast(self, interaction: discord.Interaction, message: str):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+
+        from bd_models.models import GuildConfig
+
+        configs = [c async for c in GuildConfig.objects.filter(enabled=True).exclude(spawn_channel__isnull=True)]
+
+        sent = 0
+        failed = 0
+
+        for config in configs:
+            channel = self.bot.get_channel(config.spawn_channel)
+            if not channel:
+                failed += 1
+                continue
+            try:
+                await channel.send(message)
+                sent += 1
+            except Exception:
+                failed += 1
+
+        await interaction.followup.send(
+            f"✅Broadcast complete.\nSent: **{sent}**\nFailed: **{failed}**",
+            ephemeral=True
+        )
+
+
 async def setup(bot):
     await bot.add_cog(Staff(bot))
