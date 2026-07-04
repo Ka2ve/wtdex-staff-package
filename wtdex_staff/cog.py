@@ -13,7 +13,6 @@ STAFF_IDS = [712232017311563847, 668041551389392896, 784527909414502411, 1141857
 
 
 class Staff(commands.GroupCog, group_name="staff"):
-    """Staff-only server management commands."""
 
     def __init__(self, bot):
         self.bot = bot
@@ -122,7 +121,7 @@ class Staff(commands.GroupCog, group_name="staff"):
             ephemeral=True,
         )
 
-    @app_commands.command(name="inspect", description="Inspect a plane (spawn image,card & base stats)")
+    @app_commands.command(name="inspect", description="Inspect a plane (spawn image, card & base stats)")
     @app_commands.describe(plane="The plane to inspect")
     @app_commands.autocomplete(plane=plane_autocomplete)
     async def inspect_plane(self, interaction: discord.Interaction, plane: str):
@@ -174,113 +173,99 @@ class Staff(commands.GroupCog, group_name="staff"):
         else:
             await interaction.followup.send(f"{stats_text}\n\n(No images available.)", ephemeral=True)
 
-@app_commands.command(name="restore", description="Restore vehicles from CSV to a user")
-async def restore_inventory(
-    self,
-    interaction: discord.Interaction,
-    user_id: str,
-    csv_file: discord.Attachment,
-):
-    await interaction.response.defer(ephemeral=True, thinking=True)
+    @app_commands.command(name="restore", description="Restore planes from CSV to a user")
+    @app_commands.describe(user_id="The Discord user ID to restore to", csv_file="CSV file to restore from")
+    async def restore_inventory(
+        self,
+        interaction: discord.Interaction,
+        user_id: str,
+        csv_file: discord.Attachment,
+    ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
 
-    try:
-        discord_id = int(user_id)
-    except:
-        return await interaction.followup.send(
-            "Invalid user id",
-            ephemeral=True
+        try:
+            discord_id = int(user_id)
+        except Exception:
+            return await interaction.followup.send("Invalid user id", ephemeral=True)
+
+        data = (await csv_file.read()).decode("utf-8-sig")
+
+        player, _ = await Player.objects.aget_or_create(discord_id=discord_id)
+
+        special_model = BallInstance._meta.get_field("special").remote_field.model
+
+        restored = 0
+        failed = 0
+
+        reader = csv.DictReader(io.StringIO(data))
+
+        for row in reader:
+            try:
+                vehicle_name = (row.get("plane") or "").strip()
+
+                special_name = (
+                    row.get("special_card")
+                    or row.get("special")
+                    or ""
+                ).strip()
+
+                attack_bonus = int(
+                    row.get("attack_bonus")
+                    or row.get("attack bonus")
+                    or 0
+                )
+
+                health_bonus = int(
+                    row.get("health_bonus")
+                    or row.get("hp_bonus")
+                    or 0
+                )
+
+                if not vehicle_name:
+                    failed += 1
+                    continue
+
+                ball = await Ball.objects.filter(country__iexact=vehicle_name).afirst()
+
+                if not ball:
+                    failed += 1
+                    continue
+
+                special_id = None
+
+                if special_name and special_name.lower() not in ("nan", "none", ""):
+                    special = await special_model.objects.filter(name__iexact=special_name).afirst()
+                    if special:
+                        special_id = special.pk
+
+                await BallInstance.objects.acreate(
+                    player=player,
+                    ball=ball,
+                    special_id=special_id,
+                    attack_bonus=attack_bonus,
+                    health_bonus=health_bonus,
+                    tradeable=True,
+                    deleted=False,
+                )
+
+                restored += 1
+
+            except Exception:
+                failed += 1
+
+        await interaction.followup.send(
+            f"✅ Restored {restored}\n❌ Failed {failed}",
+            ephemeral=True,
         )
 
-    data = (await csv_file.read()).decode("utf-8-sig")
-
-    player, _ = await Player.objects.aget_or_create(
-        discord_id=discord_id
-    )
-
-    special_model = BallInstance._meta.get_field(
-        "special"
-    ).remote_field.model
-
-    restored = 0
-    failed = 0
-
-    reader = csv.DictReader(io.StringIO(data))
-
-    for row in reader:
-        try:
-            vehicle_name = (row.get("plane") or "").strip()
-
-            special_name = (
-                row.get("special_card")
-                or row.get("special")
-                or ""
-            ).strip()
-
-            attack_bonus = int(
-                row.get("attack_bonus")
-                or row.get("attack bonus")
-                or 0
-            )
-
-            health_bonus = int(
-                row.get("health_bonus")
-                or row.get("hp_bonus")
-                or 0
-            )
-
-            if not vehicle_name:
-                failed += 1
-                continue
-
-            ball = await Ball.objects.filter(
-                country__iexact=vehicle_name
-            ).afirst()
-
-            if not ball:
-                failed += 1
-                continue
-
-            special_id = None
-
-            if special_name and special_name.lower() not in (
-                "nan",
-                "none",
-                "",
-            ):
-                special = await special_model.objects.filter(
-                    name__iexact=special_name
-                ).afirst()
-
-                if special:
-                    special_id = special.pk
-
-            await BallInstance.objects.acreate(
-                player=player,
-                ball=ball,
-                special_id=special_id,
-                attack_bonus=attack_bonus,
-                health_bonus=health_bonus,
-                tradeable=True,
-                deleted=False,
-            )
-
-            restored += 1
-
-        except Exception:
-            failed += 1
-
-    await interaction.followup.send(
-        f"✅ Restored {restored}\n❌ Failed {failed}",
-        ephemeral=True
-    )
-
     @app_commands.command(name="export", description="Export a user's inventory to CSV")
+    @app_commands.describe(user_id="The Discord user ID to export")
     async def export_inventory(self, interaction: discord.Interaction, user_id: str):
         await interaction.response.defer(ephemeral=True, thinking=True)
 
         try:
             discord_id = int(user_id.strip())
-        except:
+        except Exception:
             return await interaction.followup.send("Invalid user id", ephemeral=True)
 
         player = await Player.objects.filter(discord_id=discord_id).afirst()
@@ -307,15 +292,14 @@ async def restore_inventory(
 
         file = discord.File(
             io.BytesIO(output.getvalue().encode()),
-            filename=f"export_{discord_id}.csv"
+            filename=f"export_{discord_id}.csv",
         )
 
         await interaction.followup.send(
             content=f"Exported **{count}** planes for <@{discord_id}>",
             file=file,
-            ephemeral=True
+            ephemeral=True,
         )
-
 
     @app_commands.command(name="broadcast", description="Broadcast a message to all configured spawn channels")
     @app_commands.describe(message="The message to broadcast")
@@ -341,8 +325,8 @@ async def restore_inventory(
                 failed += 1
 
         await interaction.followup.send(
-            f"✅Broadcast complete.\nSent: **{sent}**\nFailed: **{failed}**",
-            ephemeral=True
+            f"✅ Broadcast complete.\nSent: **{sent}**\nFailed: **{failed}**",
+            ephemeral=True,
         )
 
 
