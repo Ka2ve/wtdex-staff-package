@@ -10,6 +10,7 @@ from bd_models.models import Ball, BallInstance, Player
 from ballsdex.core.image_generator.image_gen import draw_card
 
 STAFF_IDS = [712232017311563847, 668041551389392896, 784527909414502411, 1141857479047778394]
+LOG_CHANNEL_ID = 1523399860835979284
 
 
 class Staff(commands.GroupCog, group_name="staff"):
@@ -22,6 +23,14 @@ class Staff(commands.GroupCog, group_name="staff"):
             await interaction.response.send_message("Unauthorized.", ephemeral=True)
             return False
         return True
+
+    async def log(self, content: str):
+        channel = self.bot.get_channel(LOG_CHANNEL_ID)
+        if channel:
+            try:
+                await channel.send(content)
+            except Exception:
+                pass
 
     async def plane_autocomplete(
         self,
@@ -258,6 +267,15 @@ class Staff(commands.GroupCog, group_name="staff"):
             ephemeral=True,
         )
 
+        target_user = self.bot.get_user(discord_id)
+        target_name = target_user.name if target_user else str(discord_id)
+
+        await self.log(
+            f"User {interaction.user.mention} used `/staff restore`\n"
+            f"Restored to `{target_name}`\n"
+            f"`{discord_id}`"
+        )
+
     @app_commands.command(name="export", description="Export a user's inventory to CSV")
     @app_commands.describe(user_id="The Discord user ID to export")
     async def export_inventory(self, interaction: discord.Interaction, user_id: str):
@@ -327,6 +345,11 @@ class Staff(commands.GroupCog, group_name="staff"):
         await interaction.followup.send(
             f"✅ Broadcast complete.\nSent: **{sent}**\nFailed: **{failed}**",
             ephemeral=True,
+        )
+
+        await self.log(
+            f"User {interaction.user.mention} used `/staff broadcast`\n"
+            f"Message `{message}`"
         )
 
 
