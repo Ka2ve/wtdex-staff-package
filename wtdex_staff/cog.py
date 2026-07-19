@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import io
 import json
@@ -330,17 +331,31 @@ class Staff(commands.GroupCog, group_name="staff"):
 
         sent = 0
         failed = 0
+        # Concurrency cap: high enough to be fast, low enough to stay well under
+        # Discord's global rate limit. discord.py's own HTTP client queues/retries
+        # on 429s automatically, so this just controls how many requests are
+        # in flight at once, not the actual pacing.
+        semaphore = asyncio.Semaphore(50)
 
-        for config in configs:
-            channel = self.bot.get_channel(config.spawn_channel)
-            if not channel:
-                failed += 1
-                continue
-            try:
-                await channel.send(message)
-                sent += 1
-            except Exception:
-                failed += 1
+        async def send_one(config):
+            nonlocal sent, failed
+            async with semaphore:
+                channel = self.bot.get_channel(config.spawn_channel)
+                if not channel:
+                    # Not in cache (common at 19k+ guilds) - try a live fetch
+                    # before giving up on it.
+                    try:
+                        channel = await self.bot.fetch_channel(config.spawn_channel)
+                    except Exception:
+                        failed += 1
+                        return
+                try:
+                    await channel.send(message)
+                    sent += 1
+                except Exception:
+                    failed += 1
+
+        await asyncio.gather(*(send_one(c) for c in configs))
 
         await interaction.followup.send(
             f"✅ Broadcast complete.\nSent: **{sent}**\nFailed: **{failed}**",
